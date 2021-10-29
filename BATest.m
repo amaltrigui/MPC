@@ -103,7 +103,6 @@ end
 
 
 function x_new = Determine_X_new(x, u, Properties_Obj)
- %% Dynamics of the non linearized system: update current state but not for prediction
  % formel (18) Paper
  
  s = x(1); d = x(2); phi = x(3); v = x(4); a = u(1); delta = u(2);
@@ -138,6 +137,7 @@ end
 end
 
 function printClosedloopData(mpciter, u, x, t_Elapsed)
+% from Web
     fprintf(' %3d  | %+11.6f %+11.6f %+11.6f %+11.6f %+11.6f %+11.6f %+6.3f', ...
              mpciter, u(1,1),u(2,1), x(1), x(2),x(3),x(4), t_Elapsed);
 end
@@ -149,7 +149,7 @@ function plotTrajectories( x, x0, Properties_Obj, x_ref)
     L = l_r + l_f;  %  length of car
     B = L/2;        %  width of car
     
-    C = [0. 0. ; L 0. ; L B ; 0. B; 0 0.] ; % Car Center coordinates (Internet copied)
+    C = [0. 0. ; L 0. ; L B ; 0. B; 0 0.] ; % Car Center coordinates ( from Internet copied--> stil need to check it butit  works )
     
     
     y_lim = Properties_Obj.Lane;
