@@ -15,3 +15,5 @@ As **Parameters** I chose:
 
 * X_0 = [0,0,0,3]
 
+The plot of Velocity looks like:
+![first curve](https://github.com/amaltrigui/MPC/blob/main/Plots/v1.PNG)
