@@ -129,14 +129,13 @@ function [x, u] = nmpc(runningcosts, ...
         Cost_total = [Cost_total cost];
         Cost_total
 
-        
+        % Velocity Graph
         figure(3);
             plot(0:mpciter,x(4,:),'r');
-            axis([0 mpciterations 0 13]);
+            axis([0 mpciterations 0 13]); % 13 is v_max
             title('Velocity  NMPC TEST ');
             xlabel('time (k)');
             ylabel('velocity v (m/s)');
-        
         
         
         % refresh input for next iter
@@ -202,7 +201,7 @@ function cost = costfunction(runningcosts, system, ...
     cost = 0;
     n = length(x0);
     x = zeros(n, N+1);
-    %x: openloosolution
+    % x: openloopsolution
     x = dynamics(system,N,T,x0,u, Properties_Obj, myMatrices,Determine_X_new); 
     cost = cost+ runningcosts(x(:,2), [u_last,u(:,1)], x_ref(:,2), Properties_Obj);
     
@@ -249,7 +248,6 @@ end
 
 function X = dynamics(system, N,T, x0, u0, Properties_Obj, myMatrices,Determine_X_new)
 %% Calculate the state vector X 
-% Compute the state vector x by Concatenating all state vectors
 
     X = x0;
 
@@ -257,7 +255,7 @@ function X = dynamics(system, N,T, x0, u0, Properties_Obj, myMatrices,Determine_
     xi = computeOpenloopSolution(system, N, T, x0, u0(:,1+N*(1-1):N*1), myMatrices);
     % update 
     x0 = xi(:,N+1); 
-    xi = xi(:,2:N+1); % remove x(:,1)=x0
+    xi = xi(:,2:N+1); % delete x0
 
     X = [X,xi];
      
