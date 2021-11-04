@@ -18,3 +18,11 @@ As **Parameters** I chose:
 The plot of Velocity looks like:
 
 !<img src="https://github.com/amaltrigui/MPC/blob/main/Plots/v1.PNG" width="400" height="400" />
+
+
+### EV overtakes TV
+
+
+https://user-images.githubusercontent.com/50722211/140295442-3fc7cd2a-9389-4430-9218-803d732022ce.mp4
+
+
