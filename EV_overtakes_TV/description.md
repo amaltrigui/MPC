@@ -1,3 +1,0 @@
-### Simulation Results:
-
-## Video
