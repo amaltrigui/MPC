@@ -109,11 +109,11 @@ function [c,ceq] = constraints(x, x_ref,x_refTV, k, Properties_Obj, accident)
     R = abs( x(2)-x_ref(2) )-maxDev;
     
     % do not decelearte or accelerate too much 
-    V= abs (x(4)-x_ref(4)) - 0.5 ;
+    % V= abs (x(4)-x_ref(4)) - 0.5 ;
     
     % last Element of c is -2, which is always negative but in case of
     % accident detected it changes to the constraint that prevent it
-    c   = [vmax; v_positive ;V; R ; -2];
+    c   = [vmax; v_positive ;-1; R ; -2];
 
     width_car = (Properties_Obj.l_f+Properties_Obj.l_r)/2;
     if(accident(k)==1)
@@ -130,8 +130,8 @@ function [A, b, Aeq, beq, lb, ub] = linearconstraints()
     b   = [];
     Aeq = [];
     beq = [];
-    lb  = [-9; -0.52];   % Min input bound (paper)
-    ub  = [5;0.52];      % Max input bound
+    lb  = [-0.5; -0.52];   % Min input bound (paper)
+    ub  = [0.5;0.52];      % Max input bound
 end
 
 
