@@ -1,9 +1,9 @@
 function [x, u] = nmpc(runningcosts, ...
               constraints, ...
               linearconstraints, system, ...
-              mpciterations, N, T, xmeasure, u0, x_ref, ...
+              mpciterations, N, T,  xmeasure, u0, x_ref, x_TV_measure, x_TV_ref, ...
               Determine_X_new, Properties_Obj, computeCurvedBicycleModel, ...
-              printHeader, printClosedloopData, plotTrajectories)
+              printHeader, printClosedloopData, plotTrajectories ,TV_prediction, TV_dynamics)
 
 %the functions ARE:
 %   runningcosts:         evaluates the running costs for state and control
@@ -13,7 +13,6 @@ function [x, u] = nmpc(runningcosts, ...
 %          Usage: [cost] = runningcosts(x, u, x_ref,Properties_Obj)
 %                 with  state x, reference state x_ref, control u and
 %                 system Properties_Objeters Properties_Obj
-
 %   constraints:        
 %                         The function returns the value of the
 %                         restrictions for a sampling instance separated
@@ -48,7 +47,6 @@ function [x, u] = nmpc(runningcosts, ...
 %          Usage: [A_d, B_d, x0cft] = computeCurvedBicycleModel(x, u, T, Properties_Obj)
 %                 with time scale T, state x and control u, Properties_Obj is the system
 %                 Properties
-
 %   plotTrajectories:    Graphical output of the trajectories (Visualisation)
 %
 % Arguments are:
@@ -59,8 +57,6 @@ function [x, u] = nmpc(runningcosts, ...
 %   u0:             Initial guess of open loop control
 %   x_ref:          Reference trajectory for the EV
 %   Properties_Obj: A structure  that stores the propterties of the Problem
-
-
 
     tol_opt = 1e-6;
     % options for fmincon
@@ -78,8 +74,12 @@ function [x, u] = nmpc(runningcosts, ...
     % Initilize closed loop data
     x = [];  % Position of the EV
     u = [];
-    cost = 0;   % running Cost
-    Cost_total = cost;
+    cost = 0;   % the running Cost
+    Cost_total = cost; % total Cost of the whole Simulation
+    
+    
+    x_TV_predicted = []; % position of tv car
+    w = Properties_Obj.noise;
     
     % input of the previous time step
     u_last = [0;0];
@@ -89,31 +89,47 @@ function [x, u] = nmpc(runningcosts, ...
     while(mpciter < mpciterations)
         % Step 1:
         % Obtain new initial value
-        x0 = xmeasure;
-        % Obtain matrices
+        x0 = xmeasure;       
+        
+        % Obtain matrices from Curved Bicycle Model
         [Ad, Bd, x0fcT] = computeCurvedBicycleModel(x0, T, 0, Properties_Obj.l_f, Properties_Obj.l_r);
         myMatrices.A=Ad;
         myMatrices.B= Bd;
         myMatrices.x0fcT = x0fcT;
+        
+        
+        % Predict Trajectory of TV  for N horizon
+        x_TV_0 = x_TV_measure; 
+        x_TV_ref_N = x_TV_ref(:,mpciter+1:mpciter+N+1);
+        
+        X_TV = TV_prediction(x_TV_0,x_TV_ref_N,N,T,w);
+        
+        % Update TV position  : accumulate real Status of TV from the
+        % Beginning
+        x_TV_predicted = [ x_TV_predicted, x_TV_measure ];
+        
+        % TV next status (with noise)
+        [x_TV_measure,~] = TV_dynamics(x_TV_0, x_TV_ref(:,mpciter+1),T, w(:,mpciter+1));
  
+        
         % Step 2 :
         %   Solve the optimal control problem
         t_Start = tic;
         [u_new, V_current, exitflag, output] = solveOptimalControlProblem ...
             (runningcosts, constraints, ...
              linearconstraints, system, ...
-            N, T, x0, u0, options, x_ref(:,mpciter+1:mpciter+N+1), ...
+            N, T, x0, u0, options, x_ref(:,mpciter+1:mpciter+N+1),X_TV, ...
         Properties_Obj , myMatrices, u_last,Determine_X_new);
 
         t_Elapsed = toc( t_Start );
         
-        % compute the predicted trajectory of the EV
+        % the predicted trajectory of the EV
         x_pred = dynamics(system,N,T,x0,u_new, Properties_Obj, myMatrices,Determine_X_new);
         
-        %   Print solution
+        %  Print solution
         printSolution(printHeader, printClosedloopData, ...
                       plotTrajectories, mpciter, x0, u_new, ...
-                      exitflag, output, t_Elapsed, Properties_Obj, x_ref,x_pred);
+                      exitflag, output, t_Elapsed, Properties_Obj, x_ref, x_pred, x_TV_ref, x_TV_measure);
 
 
         %   Store closed loop data
@@ -124,19 +140,23 @@ function [x, u] = nmpc(runningcosts, ...
         %  Apply control to process
         xmeasure = applyControl(system, T, x0, u_new, myMatrices);
         
-        %add previous Cost value
+        % add previous Cost value
         cost = cost + runningcosts(xmeasure, [u_last,u_new(:,1)], x_ref(:,1), Properties_Obj);
         Cost_total = [Cost_total cost];
-        Cost_total
+ 
+%         % Cost Plot
+%          plotCost(Cost_total, mpciter);
+% % 
+% %         % Velocity Graph
+%          plotVelocity(x, Properties_Obj, mpciterations, mpciter);
+% % 
+% %         % Position d
+%          plot_d(mpciter, mpciterations,N, x);
 
-        % Velocity Graph
-        figure(3);
-            plot(0:mpciter,x(4,:),'r');
-            axis([0 mpciterations 0 13]); % 13 is v_max
-            title('Velocity  NMPC TEST ');
-            xlabel('time (k)');
-            ylabel('velocity v (m/s)');
-        
+        % plot Cars allure
+        plotTrajectories( x, x0, x_ref,Properties_Obj,X_TV(:,1))
+
+        %plotTrajectories( x, x0, x_ref,Properties_Obj,x_TV_measure)
         
         % refresh input for next iter
         u0 = shiftHorizon(u_new);
@@ -155,7 +175,7 @@ end
 function [u, V, exitflag, output] = solveOptimalControlProblem ...
     (runningcosts, constraints, ...
     linearconstraints, system, N,T, x0, u0, ...
-    options, x_ref, Properties_Obj, myMatrices, u_last,Determine_X_new)
+    options, x_ref,x_TV, Properties_Obj, myMatrices, u_last,Determine_X_new)
     % Set control and linear bounds
     A = [];
     b = [];
@@ -179,7 +199,7 @@ function [u, V, exitflag, output] = solveOptimalControlProblem ...
     system, N,T, x0, ...
     u,x_ref,Properties_Obj, myMatrices, u_last,Determine_X_new), u0, A, b, Aeq, beq, lb, ...
     ub, @(u) nonlinearconstraints(constraints, ...
-    system, N,T, x0, u, Properties_Obj,x_ref,myMatrices,Determine_X_new), options);
+    system, N,T, x0, u, Properties_Obj,x_ref,x_TV,myMatrices,Determine_X_new), options);
         
 
 end
@@ -212,21 +232,21 @@ end
 
 function [c,ceq] = nonlinearconstraints(constraints, ...
     system, ...
-    N,T, x0, u, Properties_Obj,x_ref,myMatrices, Determine_X_new)
+    N,T, x0, u, Properties_Obj,x_ref,x_TV,myMatrices, Determine_X_new)
     x = zeros(N+1, length(x0));
 
     %OpenloopSolution
     x = dynamics(system,N,T,x0,u, Properties_Obj, myMatrices, Determine_X_new);
-
+    
     c = [];
     ceq = [];
     for k=2:N
-        [cnew, ceqnew] = constraints(x(:,k),x_ref(:,k), k, Properties_Obj);
+        [cnew, ceqnew] = constraints(x(:,k),x_ref(:,k),x_TV(:,k), k, Properties_Obj);
         c = [c cnew];
         ceq = [ceq ceqnew];
     end
     % terminal constraints
-    [cnew, ceqnew] = constraints(x(:,N+1),x_ref(:,N+1), N+1, Properties_Obj);
+    [cnew, ceqnew] = constraints(x(:,N+1),x_ref(:,N+1),x_TV(:,N+1), N+1, Properties_Obj);
     c = [c cnew];
     ceq = [ceq ceqnew];
 end
@@ -234,15 +254,16 @@ end
 
 %%%%%% OUTPUT %%%%%%%%%%%%%
 function printSolution(printHeader, printClosedloopData, ...
-             plotTrajectories, mpciter, x0, u, exitflag, output, t_Elapsed, ...
-             Properties_Obj, x_ref, x )
+                       plotTrajectories, mpciter, x0, u,...
+                       exitflag, output, t_Elapsed, Properties_Obj, x_ref, x , x_refTV, x_TV)
     % Print results
     if (mpciter == 0)
         printHeader();
     end
-    printClosedloopData(mpciter, u, x0, t_Elapsed);
     
-    plotTrajectories(x, x0, Properties_Obj, x_ref ) 
+    printClosedloopData(mpciter, u, x0, t_Elapsed, x_TV);
+    
+    %plotTrajectories(x, x0, x_ref,Properties_Obj,x_refTV ) 
 end
 
 
@@ -261,3 +282,32 @@ function X = dynamics(system, N,T, x0, u0, Properties_Obj, myMatrices,Determine_
      
 
 end
+
+%% Utils
+function plotVelocity(x, Properties_Obj, mpciterations, mpciter)
+    figure(3);
+    plot(0:mpciter,x(4,:),'r');
+    axis([0 mpciterations 0 Properties_Obj.v_max]);
+    title('Velocity  NMPC TEST ');
+    xlabel('time (k)');
+    ylabel('velocity v (m/s)');
+end
+
+function plotCost(Cost_total, mpciter)
+   figure(4)
+   plot(0:mpciter,Cost_total(1:mpciter+1),'r');
+   title('Standard MPC');
+   xlabel('time instant k');
+   ylabel('Cost function value');
+end
+
+function plot_d(mpciter, mpciterations,N, x)
+    figure(5);
+    plot(0:mpciter,x(2,:),'r');
+    axis([0 mpciterations+N+1 -5 5]);
+    title('d  NMPC TEST ');
+    xlabel('time (k)');
+    ylabel('d (m)');
+end
+
+
