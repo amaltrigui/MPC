@@ -5,20 +5,26 @@ function Main
     clear all;
     addpath myfunctionsfolder;
     
-%     figure(1);
-%         title('Test One Car ');
-%         xlabel(' x in meter');
-%         ylabel(' y in meter');
-%         grid on;
-%         hold on;
+    figure(1);
+        title('Test Two Cars on the same Lane ');
+        xlabel(' x in meter');
+        ylabel(' y in meter');
+        grid on;
+        hold on;
         
         
-    mpciterations = 50;     % the Length of the Simulation 
-    N             = 6;      % prediction horizon  
+    mpciterations = 60;     % the Length of the Simulation 
+    N             = 8;      % prediction horizon  
     T             = 0.2;    % Sampling interval
     
 
-%% EV and Lane Properties_Objeters
+%% EV and Lane in Properties_Obj
+    
+    % not so sure
+    covar_matrix= [ 0.15 0 ; 0 0.03];
+    Properties_Obj.noise = covar_matrix* randn(2,mpciterations); 
+    
+    
     Properties_Obj.l_r = 2;    
     Properties_Obj.l_f = 2;    
     
@@ -27,66 +33,120 @@ function Main
     Properties_Obj.R = diag([0.33 5]);
     Properties_Obj.S = diag([0.33 15]);
 
-    Properties_Obj.v_max = 13; 
+    Properties_Obj.v_max = 20; 
 
-    Properties_Obj.Lane = [-2,2]; % lane width is 4
- 
+    Properties_Obj.Lane = [-4,4]; 
+    Properties_Obj.Lane(2)
+
+    Properties_Obj.maxDeviation = 4;
+    Properties_Obj.safety_distance = 2; % min Radius between two cars
 
 %% Initial values
     % Initial state X: (4*1)Vector (s,d,phi,v)
-    % Car in Q(0,0) in Coorinate-System
-    % Car has 0 rad as orientation of Veh bzgl Road
-    % Car has an initial Velocity of 3 m/s
-    xmeasure      = [0.0; 0.0; 0.0; 3];  
     
-    % Initial Input
-    % u0 : (2*1)
-    % accelearion is 0 m/s^2
-    % steering angle is 0 rad  --> Car has a konstant velocity
+    % EV:
+    % Velocity of the EV is 7m/S
+    xmeasure      = [0.0; -2.0; 0.0; 9];  
+    
+    % Input:
     u0            = zeros(2,N);  
     
+    % TV:
+    % Velocity of Car 2 is 5m/S, smaller than velocity of EV --> to get the
+    % Accident-Alarm Case. TV is already at the Beginning of the Simulation
+    % 8 m ahead of EV.
+    x_TV_measure  = [8; 5; -2; 0];  
+       
 %% reference trajectory
-    % How would the car goes if no constaints are added --> No acceleration
-    % or deviation --> d 'lateral position' would stay 0(No deviation)
+
+    % EV:
+    % How is it wished, so that the car goes if no constaints are added 
+    %              --> d 'lateral position' would stay 0(No deviation)
     %              --> phi 'Orientation' is also 0
-    %              --> v would stay kostant 9 m/s
+    %              --> v would stay kostant 7 m/s
     %              --> s 'longitudinal position' goes from 0:v*t and t is 1 second for exemple ? Does
-    %              it matter since Q(0) =0000
-    d = zeros(1,mpciterations+N+1);
-    phi =  zeros(1,mpciterations+N+1);
-    v = 3*ones(1,mpciterations+N+1);
-    v(10:29)=7;  % change to reference Velocity between Time 10 and 27 (instant) to 7
+    %              it matter since Q(0) =0000--> No
+    d           =   xmeasure(2)*ones(1,mpciterations+N+1);
+    phi         =   zeros(1,mpciterations+N+1);
+    v           =   xmeasure(4)*ones(1,mpciterations+N+1);
     x_ref = [0:mpciterations+N;d;phi;v];
     
+    % TV:
+    % Reference Trajectory of TV
+    % assuming that the second car maintains the same velocity and same
+    % lane as Reference Trajectory
+    
+        
+     yTV         =   x_TV_measure(3)*ones(1,mpciterations+N+1);
+     vyTV        =   zeros(1,mpciterations+N+1);
+     vxTV        =   x_TV_measure(2)*ones(1,mpciterations+N+1);
+     xTV         =   (0:1:mpciterations+N)*T*x_TV_measure(2)+ x_TV_measure(1);
+     x_TV_ref    =   [xTV;vxTV;yTV;vyTV];   
+    
 %% Optimization
-
-    Properties_Obj.steps = 1;
     nmpc(@runningcosts, @constraints, ...
           @linearconstraints, @system, ...
-         mpciterations, N, T, xmeasure, u0, x_ref,@Determine_X_new, ...
-            Properties_Obj, @computeCurvedBicycleModel, @printHeader, @printClosedloopData, @plotTrajectories);
+         mpciterations, N, T, xmeasure, u0, x_ref, x_TV_measure, x_TV_ref, @Determine_X_new, ...
+            Properties_Obj, @computeCurvedBicycleModel, @printHeader, @printClosedloopData, @plotTrajectories, @TV_prediction, @TV_dynamics);
 
-    rmpath('./functions');
+    rmpath('./myfunctionsfolder');
 
 end
 
 
 function cost = runningcosts(x, u, x_ref,Properties_Obj)
-%% Paper Formel (25)
-
+%% From the Paper , see Formel (25)
    u_prev = u(:,1);
    u_curr = u(:,2);
-  
+   
    cost = (x-x_ref).'*Properties_Obj.Q*(x-x_ref) + u_curr.'*Properties_Obj.R*(u_curr) + (u_curr-u_prev).'*Properties_Obj.S*(u_curr-u_prev);
 end
 
 
-function [c,ceq] = constraints(x, x_ref, k, Properties_Obj)
+function [c,ceq] = constraints(x, x_ref, x_TV, k, Properties_Obj)
 %% constraints
     
-    vmax = x(4)- Properties_Obj.v_max;  % v<vmax
+    % velocity 
+    vmax = x(4)- Properties_Obj.v_max ;  % v<vmax
     v_positive = -x(4);        % v>0
-    c   = [vmax;v_positive];
+    
+    
+    % do not deviate so much from reference Trajectory 
+    maxDev = Properties_Obj.maxDeviation; 
+    R = abs( x(2)-x_ref(2) )-maxDev;
+    
+    
+    % do not deviate from Lane Borderies
+    up_lane = Properties_Obj.Lane(2); 
+    down_lane = Properties_Obj.Lane(1); 
+    carWidth  = (Properties_Obj.l_r +  Properties_Obj.l_f)/2; % B=L/2
+    
+%     e1 = -x(2) + carWidth/2 + down_lane;
+%     e2 = x(2) + carWidth/2 - up_lane; 
+
+    e1 = -x(2) - 3.5;
+    e2 = x(2) - 3.5; 
+
+    % do not decelearte or accelerate too much 
+    V= abs (x(4)-x_ref(4)) - 0.5 ;
+    
+    % last Element of c is -2, which is always negative but in case of
+    % accident detected it changes to the constraint that prevent it
+    c   = [vmax; v_positive ; R ;V; e1; e2; -2];
+
+    width_car = (Properties_Obj.l_f+Properties_Obj.l_r)/2;
+    
+    % hier detect acciden
+    
+    % check if an accident can happen during the next predicted Horizon
+%     x(1)
+%     x_refTV(1)
+    accident_boolean = (x(1)+Properties_Obj.l_f+ Properties_Obj.safety_distance>= x_TV(1)-Properties_Obj.l_r) && ( x(1)-Properties_Obj.l_r<=x_TV(1)+Properties_Obj.l_f+Properties_Obj.safety_distance);
+    if(accident_boolean)
+        A = x_TV(2)+width_car- x(2);
+        c(end)=A;
+    end
+          
     ceq = [];
 end
 
@@ -96,14 +156,14 @@ function [A, b, Aeq, beq, lb, ub] = linearconstraints()
     b   = [];
     Aeq = [];
     beq = [];
-    lb  = [-9; -0.52];   % Min input bound (paper)
-    ub  = [5;0.52];      % Max input bound
+    lb  = [-0.5; -0.52];   % Min input bound (paper)
+    ub  = [0.5;0.52];      % Max input bound
 end
 
 
 
 function x_new = Determine_X_new(x, u, Properties_Obj)
- % formel (18) Paper
+ %% formel (18) Paper
  
  s = x(1); d = x(2); phi = x(3); v = x(4); a = u(1); delta = u(2);
   
@@ -134,48 +194,59 @@ end
  function printHeader()
     fprintf('   k  |      a(k)        delta(k)        s        d        phi        v     Time\n');
     fprintf('--------------------------------------------------------------------------------\n');
-end
+ end
 
-function printClosedloopData(mpciter, u, x, t_Elapsed)
-% from Web
-    fprintf(' %3d  | %+11.6f %+11.6f %+11.6f %+11.6f %+11.6f %+11.6f %+6.3f', ...
+         
+function printClosedloopData(mpciter, u, x, t_Elapsed, x_TV)
+%% from Web
+    fprintf(' %3d  | %+11.6f %+11.6f %+11.6f %+11.6f %+11.6f %+11.6f %+6.3f \n', ...
              mpciter, u(1,1),u(2,1), x(1), x(2),x(3),x(4), t_Elapsed);
+    
+    fprintf('\n ');     
+    fprintf(' Values of TV state : \n ') ;
+    x_TV
 end
 
-function plotTrajectories( x, x0, Properties_Obj, x_ref)      
-% plot road
+
+function plotTrajectories( x, x0, x_ref, Properties_Obj,x_TV)
+ %% Visualize Cars   
+    % Assuming that the Width and Length of EV is equal to TV
     l_r = Properties_Obj.l_r;
     l_f = Properties_Obj.l_f;
     L = l_r + l_f;  %  length of car
     B = L/2;        %  width of car
-    
+
     C = [0. 0. ; L 0. ; L B ; 0. B; 0 0.] ; % Car Center coordinates ( from Internet copied--> stil need to check it butit  works )
-    
-    
+
     y_lim = Properties_Obj.Lane;
     y_middle = (y_lim(1)+y_lim(2))/2; % lane cut in 2
-        
-%     plot(linspace(-2,40,100),y_lim(1)*ones(100),'b')  % upper Borderie
-%     plot(linspace(-2,40,100),y_lim(2)*ones(100),'b')  % lower Borderie
-%     plot(linspace(-2,40,100),y_middle*ones(100), '--')    % middle of Lane
 
-% plot x_Ref
-%     plot(linspace(x_ref(1,1),x_ref(1,length(x_ref)),100),linspace(x_ref(2,1),x_ref(2,length(x_ref)), 100),'r')
-% plot car
-%     h4= plot(C(:,1)+x0(1)-L/2,C(:,2)+x0(2)-B/2,'black')
 
-% adjust axis
-%     axis([-2 40 -5 7]);
-%     pause(1)
-%     set(h4,'Visible','off')
+    % plot street
+    plot(linspace(-2,90,100),y_lim(1)*ones(100),'b')  % upper Borderie
+    plot(linspace(-2,90,100),y_lim(2)*ones(100),'b')  % lower Borderie
+    plot(linspace(-2,90,100),y_middle*ones(100), '--')    % middle of Lane
+
+    % plot x_Ref EV
+    plot(linspace(x_ref(1,1),x_ref(1,length(x_ref)),100),linspace(x_ref(2,1),x_ref(2,length(x_ref)), 100),'r')
     
+    % plot EV trajectory
+    h8= plot(C(:,1)+x0(1)-L/2,C(:,2)+x0(2)-B/2,'black');
+
+    % plot TV trajectory
+    h9 =plot(C(:,1)+x_TV(1)-L/2,C(:,2)+x_TV(3)-B/2,'green');
+
+    axis([-2 90 -35 35]); 
+    pause(0.3)
+    set(h8,'Visible','off')
+    set(h9,'Visible','off')
+
 end
 
 
-%% CurvedBicycleModel Paper/Tomasso
 function [Ad, Bd, x0fcT] = computeCurvedBicycleModel(x, T, k, lf, lr)
+%% CurvedBicycleModel Paper/Tommaso
 
-    x
     d = x(2);
     v = x(4);
     c0 = cos(x(3));
@@ -282,7 +353,37 @@ end
 
 
 
+%%%%%%%% TV CAR %%%%%%%
+
+% for prediction no noise
+% for real trajectory with noise
+
+
+% xTV = [x,vx,y,vy] 4 x 1 
+%--> see paper ,copy values
 
 
 
+function [x_TV_withnoise, x_TV] = TV_dynamics(xTVk, x_TV_ref_k, T, w) 
+%% x_TV_ref_k is the k-st eintrag in x_TV_ref
+    A = [1 T 0 0 ; 0 1 0 0; 0 0 1 T; 0 0 0 1];
+    t = (T^2)/2;
+    B = [t 0; T 0; 0 t; 0 T];
+    
+    K = [ 0 -0.55 0 0 ; 0 0 -0.63 -1.15];
+    % Prediction of TV without noise
 
+    x_TV = (A+B*K)*xTVk - B*K*x_TV_ref_k;
+    
+    % with Gaussian Noise
+    x_TV_withnoise = x_TV + B*w ;
+end
+
+function X_TV = TV_prediction(x_TV_0, x_TV_ref, N, T, w)
+%%   x_TV_ref : whole N dimensional xtv ref
+    X_TV(:,1) = x_TV_0;
+    for k=1:N
+       [~,xtv]  = TV_dynamics(X_TV(:,k),x_TV_ref(:,k), T,w(:,1));  
+        X_TV(:,k+1)= xtv;   
+    end
+end
