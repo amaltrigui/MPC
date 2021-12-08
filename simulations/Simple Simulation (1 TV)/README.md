@@ -7,3 +7,5 @@ First Test :
 * At a certain time, since EV is faster than TV, EV will overtake TV from the left than returns to the right Lane (The right Lane is always the reference Lane in the Road)
 * Plots :
 
+!<img src="https://github.com/amaltrigui/MPC/blob/main/simulations/Simple Simulation (1 TV)/Plots/v1.jpg" width="400" height="400" />
+
