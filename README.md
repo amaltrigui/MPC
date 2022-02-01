@@ -6,7 +6,10 @@ shared Code for MPC
 #### High Level SMPC:
 -> in this case, EV couldn t return back right because of TV3(green)
 
-https://user-images.githubusercontent.com/50722211/151908641-f0e9e4be-e036-4a2b-b0c3-82782cb7ab60.mp4
+
+
+https://user-images.githubusercontent.com/50722211/151923123-5b159217-e41c-4058-8fd1-1d5e1e80657b.mp4
+
 
 ```diff
 ! Comparison cost =  382.5916
@@ -20,7 +23,9 @@ It depends on the chosen Parameters r_close (minimale distance between 2 vehicle
 *1st : choose r_close = 60m ->  in this case the state machine behave almost similarly to Hierarchical MPC.
 EV finds itself obliged to decrease the velocity after making the decision to deviate left and facing the second TV
 
-https://user-images.githubusercontent.com/50722211/151909156-352637c9-c6f4-4824-8e70-2b0d015ee35b.mp4
+
+https://user-images.githubusercontent.com/50722211/151923224-93421753-d639-4f2d-91e8-61bb948504a4.mp4
+
 
 ```diff
 ! Comparison cost =  575. 946
