@@ -68,5 +68,8 @@ HL-MPC: check results (basically cost) each time for  a certain noise cov_matric
 ![untitled](https://user-images.githubusercontent.com/50722211/151920023-0a832c60-7400-47ef-920b-3aa7df4184e6.jpg)
 
 State Machine: same check
+
+total cost is highly increased 274.4603>>> 15.,,,
+
 ![untitledk](https://user-images.githubusercontent.com/50722211/151920840-c9bfd957-e00e-4faf-ada2-b510776c01df.jpg)
 
