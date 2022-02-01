@@ -10,8 +10,8 @@ https://user-images.githubusercontent.com/50722211/151908641-f0e9e4be-e036-4a2b-
 
 ```diff
 ! Comparison cost =  382.5916
-- total computation time:
-- Low Level compuutation time :
+- total computation time: 62.8528 s
+- total Low Level computation time : 56.5817 s
 ```
 
 #### State Machine :
@@ -24,11 +24,17 @@ https://user-images.githubusercontent.com/50722211/151909156-352637c9-c6f4-4824-
 
 ```diff
 ! Comparison cost =  575. 946
-- total computation time:
-- Low Level compuutation time :
+- total computation time: 39.5425 s
+- Low Level compuutation time :39.2841 s
 ```
 *2nd : choose r_close = 40m <1st r_close
 
+
+```diff
+! Comparison cost =  2567.6
+- total computation time: 
+- Low Level compuutation time :
+```
 
 
 
@@ -54,5 +60,13 @@ Cost For the state machine: [ 15.9608   16.5978   17.1390   17.3863 18.1142]
 ![plotcosts](https://user-images.githubusercontent.com/50722211/151910280-99685dc1-271e-4900-be7a-e940ae0c5a1d.jpg)
 
 
+### Run Simulation for n= 20 times
+HL-MPC: check results (basically cost) each time for  a certain noise cov_matrice = [ 0.15 0 ; 0 0.03] and  mpciterations = 100 
 
+--> static results
+
+![untitled](https://user-images.githubusercontent.com/50722211/151920023-0a832c60-7400-47ef-920b-3aa7df4184e6.jpg)
+
+State Machine: same check
+![untitledk](https://user-images.githubusercontent.com/50722211/151920840-c9bfd957-e00e-4faf-ada2-b510776c01df.jpg)
 
