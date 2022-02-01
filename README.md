@@ -1,23 +1,57 @@
-# MPC
+# Simulations and results
 
 shared Code for MPC
 
-#### step 1: non linear MPC, simple Simulation:
-As **Parameters** I chose:
-* mpciterations = 50;     
-* N             = 6;      
-* T             = 0.2; 
-* X_reference = [s_ref, d_ref, phi_ref, v_ref], where:
-    - s_ref : random for the moment 
-    - d_ref : 0
-    - phi : 0
-    - v_ref : for k 10:29 (out of mpciterations+N+1 )is v = 7m/s otherwiese 3 m/s =v_0 --> Just to check the Velocity Curve
+### First Example ) : 3 TVs + 1 EV:
+#### High Level SMPC:
+-> in this case, EV couldn t return back right because of TV3(green)
 
-* X_0 = [0,0,0,3]
+https://user-images.githubusercontent.com/50722211/151908641-f0e9e4be-e036-4a2b-b0c3-82782cb7ab60.mp4
 
-The plot of Velocity looks like:
+```diff
+! Comparison cost =  382.5916
+- total computation time:
+- Low Level compuutation time :
+```
 
-!<img src="https://github.com/amaltrigui/MPC/blob/main/Plots/v1.PNG" width="400" height="400" />
+#### State Machine :
+It depends on the chosen Parameters r_close (minimale distance between 2 vehicles that affects on the switching rules):
+
+*1st : choose r_close = 60m ->  in this case the state machine behave almost similarly to Hierarchical MPC.
+EV finds itself obliged to decrease the velocity after making the decision to deviate left and facing the second TV
+
+https://user-images.githubusercontent.com/50722211/151909156-352637c9-c6f4-4824-8e70-2b0d015ee35b.mp4
+
+```diff
+! Comparison cost =  575. 946
+- total computation time:
+- Low Level compuutation time :
+```
+*2nd : choose r_close = 40m <1st r_close
+
+
+
+
+### Second Example ) : 2 TVs + 1 EV:
+#### High Level SMPC:
+-Velocity_ev = 20m/s
+-x_TV_measure  = [140; 7; -1.5; 0];  
+-x_TV2_measure  = [150; 15; 1.5; 0];  15<20m/S
+->Light decreasing in the velocity of EV because of TV2 when being in the left lane(from 20m/s to average 17m/s)
+
+https://user-images.githubusercontent.com/50722211/151909788-3a5514be-f06e-44c8-8578-24078a49280c.mp4
+#### State Machine :
+video previously added (presentation)
+
+
+### Simple Example :1TV + 1 EV
+tried 5 different covariance matrices for the gaussian noise-->  the state machine maneuver develops a bigger comparison cost with more(increasing) noise than the one from HL SMPC.
+
+Cost For the mpc: [4.5987    4.5987    4.5987    4.5987    4.5987]
+
+Cost For the state machine: [ 15.9608   16.5978   17.1390   17.3863 18.1142]
+
+![plotcosts](https://user-images.githubusercontent.com/50722211/151910280-99685dc1-271e-4900-be7a-e940ae0c5a1d.jpg)
 
 
 
